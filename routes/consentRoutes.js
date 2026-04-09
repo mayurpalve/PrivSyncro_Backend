@@ -1,19 +1,13 @@
 const express = require("express");
-const {
-  createConsent,
-  getConsents,
-  updateConsent,
-  deleteConsent
-} = require("../controllers/consentController");
+const { createConsent, getConsents, revokeConsent } = require("../controllers/consentController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
 router.use(authMiddleware);
 
-router.get("/", getConsents);
 router.post("/", createConsent);
-router.put("/:id", updateConsent);
-router.delete("/:id", deleteConsent);
+router.get("/", getConsents);
+router.patch("/:id/revoke", revokeConsent);
 
 module.exports = router;

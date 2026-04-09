@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const consentSchema = new mongoose.Schema(
+const activitySchema = new mongoose.Schema(
   {
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -20,19 +20,17 @@ const consentSchema = new mongoose.Schema(
       trim: true,
       lowercase: true
     },
-    status: {
-      type: String,
-      enum: ["allowed", "denied"],
-      required: true,
-      default: "allowed"
-    },
-    expiry: {
+    timestamp: {
       type: Date,
-      default: null
+      required: true,
+      default: Date.now,
+      index: true
     },
-    conditions: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null
+    duration: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0
     }
   },
   {
@@ -40,6 +38,6 @@ const consentSchema = new mongoose.Schema(
   }
 );
 
-consentSchema.index({ userId: 1, appId: 1, dataType: 1 }, { unique: true });
+activitySchema.index({ userId: 1, appId: 1, dataType: 1, timestamp: -1 });
 
-module.exports = mongoose.model("Consent", consentSchema);
+module.exports = mongoose.model("Activity", activitySchema);
