@@ -67,6 +67,32 @@ const toFrontendStatusRedirect = (provider, status, detail = "") => {
   return `${FRONTEND_BASE_URL}/?${query.toString()}`;
 };
 
+const extractErrorDetail = (error) => {
+  const providerError = error?.response?.data;
+
+  if (typeof providerError === "string" && providerError.trim()) {
+    return providerError;
+  }
+
+  if (providerError?.error_description) {
+    return providerError.error_description;
+  }
+
+  if (providerError?.error?.message) {
+    return providerError.error.message;
+  }
+
+  if (providerError?.error) {
+    return String(providerError.error);
+  }
+
+  if (error?.response?.statusText) {
+    return error.response.statusText;
+  }
+
+  return error?.message || "Unknown integration error";
+};
+
 const exchangeCodeForToken = async ({ provider, code, config, clientId, clientSecret, redirectUri }) => {
   if (provider === "spotify") {
     const tokenPayload = new URLSearchParams({
@@ -96,6 +122,88 @@ const exchangeCodeForToken = async ({ provider, code, config, clientId, clientSe
   return axios.post(config.tokenUrl, tokenPayload.toString(), {
     headers: { "Content-Type": "application/x-www-form-urlencoded" }
   });
+};
+
+const refreshAccessToken = async ({ account, provider, config }) => {
+  if (!account?.refreshToken) {
+    throw new Error("Refresh token not available");
+  }
+
+  const clientId = process.env[config.clientIdEnv];
+  const clientSecret = process.env[config.clientSecretEnv];
+
+  if (!clientId || !clientSecret) {
+    throw new Error("OAuth client credentials are missing");
+  }
+
+  if (provider === "spotify") {
+    const payload = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: account.refreshToken
+    });
+
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+    const response = await axios.post(config.tokenUrl, payload.toString(), {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Authorization: `Basic ${basicAuth}`
+      }
+    });
+
+    return response.data;
+  }
+
+  const payload = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: account.refreshToken,
+    client_id: clientId,
+    client_secret: clientSecret
+  });
+
+  const response = await axios.post(config.tokenUrl, payload.toString(), {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    }
+  });
+
+  return response.data;
+};
+
+const fetchUserInfoWithAutoRefresh = async ({ account, provider, config }) => {
+  try {
+    const response = await axios.get(config.userInfoUrl, {
+      headers: { Authorization: `Bearer ${account.accessToken}` }
+    });
+    return { profile: response.data, account };
+  } catch (error) {
+    const status = error?.response?.status;
+    if (status !== 401 || !account.refreshToken) {
+      throw error;
+    }
+
+    const refreshed = await refreshAccessToken({ account, provider, config });
+    const updatedAccount = await IntegrationAccount.findByIdAndUpdate(
+      account._id,
+      {
+        accessToken: refreshed.access_token,
+        refreshToken: refreshed.refresh_token || account.refreshToken,
+        tokenExpiresAt: refreshed.expires_in
+          ? new Date(Date.now() + refreshed.expires_in * 1000)
+          : account.tokenExpiresAt,
+        scope: refreshed.scope
+          ? refreshed.scope.split(" ").filter(Boolean)
+          : account.scope
+      },
+      { new: true }
+    );
+
+    const retryResponse = await axios.get(config.userInfoUrl, {
+      headers: { Authorization: `Bearer ${updatedAccount.accessToken}` }
+    });
+
+    return { profile: retryResponse.data, account: updatedAccount };
+  }
 };
 
 const createStateToken = (userId, provider) =>
@@ -193,7 +301,6 @@ exports.handleOAuthCallback = async (req, res) => {
 
     const tokenData = tokenResponse.data;
     const accessToken = tokenData.access_token;
-    const refreshToken = tokenData.refresh_token || "";
 
     const userInfoResponse = await axios.get(config.userInfoUrl, {
       headers: { Authorization: `Bearer ${accessToken}` }
@@ -213,13 +320,18 @@ exports.handleOAuthCallback = async (req, res) => {
             displayName: profile.name || "Google User"
           };
 
+    const existingAccount = await IntegrationAccount.findOne({
+      userId: decodedState.userId,
+      provider
+    }).select("refreshToken");
+
     await IntegrationAccount.findOneAndUpdate(
       { userId: decodedState.userId, provider },
       {
         userId: decodedState.userId,
         provider,
         accessToken,
-        refreshToken,
+        refreshToken: tokenData.refresh_token || existingAccount?.refreshToken || "",
         scope: (tokenData.scope || "").split(" ").filter(Boolean),
         tokenExpiresAt: tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null,
         ...providerProfile
@@ -229,11 +341,7 @@ exports.handleOAuthCallback = async (req, res) => {
 
     return res.redirect(toFrontendStatusRedirect(provider, "connected"));
   } catch (error) {
-    const detail =
-      error.response?.data?.error_description ||
-      error.response?.data?.error ||
-      error.response?.statusText ||
-      error.message;
+    const detail = extractErrorDetail(error);
 
     console.error("OAuth callback error:", error.response?.data || error.message);
     return res.redirect(toFrontendStatusRedirect(req.params.provider, "failed", String(detail)));
@@ -309,32 +417,31 @@ exports.verifyIntegrationLive = async (req, res) => {
     const account = await IntegrationAccount.findOne({
       userId: req.user.id,
       provider
-    }).select("provider accessToken email displayName providerUserId scope updatedAt");
+    }).select("provider accessToken refreshToken email displayName providerUserId scope updatedAt tokenExpiresAt");
 
     if (!account) {
       return res.status(404).json({ message: `${provider} account is not connected` });
     }
 
-    const profileResponse = await axios.get(config.userInfoUrl, {
-      headers: {
-        Authorization: `Bearer ${account.accessToken}`
-      }
+    const { profile, account: effectiveAccount } = await fetchUserInfoWithAutoRefresh({
+      account,
+      provider,
+      config
     });
 
-    const profile = profileResponse.data;
     const liveProfile =
       provider === "spotify"
         ? {
-            providerUserId: profile.id || account.providerUserId || "",
-            email: profile.email || account.email || "",
-            displayName: profile.display_name || account.displayName || "",
+            providerUserId: profile.id || effectiveAccount.providerUserId || "",
+            email: profile.email || effectiveAccount.email || "",
+            displayName: profile.display_name || effectiveAccount.displayName || "",
             country: profile.country || "",
             product: profile.product || ""
           }
         : {
-            providerUserId: profile.id || account.providerUserId || "",
-            email: profile.email || account.email || "",
-            displayName: profile.name || account.displayName || "",
+            providerUserId: profile.id || effectiveAccount.providerUserId || "",
+            email: profile.email || effectiveAccount.email || "",
+            displayName: profile.name || effectiveAccount.displayName || "",
             picture: profile.picture || ""
           };
 
@@ -342,16 +449,12 @@ exports.verifyIntegrationLive = async (req, res) => {
       provider,
       verified: true,
       verifiedAt: new Date().toISOString(),
-      tokenLastUpdatedAt: account.updatedAt,
-      grantedPermissions: toReadablePermissions(provider, account.scope || []),
+      tokenLastUpdatedAt: effectiveAccount.updatedAt,
+      grantedPermissions: toReadablePermissions(provider, effectiveAccount.scope || []),
       liveProfile
     });
   } catch (error) {
-    const detail =
-      error.response?.data?.error_description ||
-      error.response?.data?.error ||
-      error.response?.statusText ||
-      error.message;
+    const detail = extractErrorDetail(error);
 
     console.error("Live verification error:", error.response?.data || error.message);
     return res.status(500).json({
