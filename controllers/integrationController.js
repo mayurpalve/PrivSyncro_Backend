@@ -37,6 +37,30 @@ const providerConfigs = {
 
 const getProviderConfig = (provider) => providerConfigs[provider];
 
+const scopeLabelMap = {
+  spotify: {
+    "user-read-email": "Read Spotify account email",
+    "user-read-private": "Read Spotify profile information",
+    "user-read-recently-played": "Read recently played tracks"
+  },
+  google: {
+    openid: "Sign in with Google identity",
+    email: "Read Google account email",
+    profile: "Read Google profile details",
+    "https://www.googleapis.com/auth/fitness.activity.read": "Read Google Fit activity data",
+    "https://www.googleapis.com/auth/fitness.location.read": "Read Google Fit location data"
+  }
+};
+
+const toReadablePermissions = (provider, scopes = []) => {
+  const labels = scopeLabelMap[provider] || {};
+
+  return scopes.map((scope) => ({
+    scope,
+    label: labels[scope] || scope
+  }));
+};
+
 const toFrontendStatusRedirect = (provider, status, detail = "") => {
   const query = new URLSearchParams({ integration: provider, status });
   if (detail) query.append("detail", detail);
@@ -240,7 +264,16 @@ exports.getLinkedAccounts = async (req, res) => {
       .select("provider email displayName scope tokenExpiresAt updatedAt")
       .sort({ updatedAt: -1 });
 
-    return res.status(200).json(accounts);
+    const enrichedAccounts = accounts.map((account) => {
+      const accountObject = account.toObject();
+
+      return {
+        ...accountObject,
+        grantedPermissions: toReadablePermissions(accountObject.provider, accountObject.scope)
+      };
+    });
+
+    return res.status(200).json(enrichedAccounts);
   } catch (error) {
     console.error("Get linked accounts error:", error.message);
     return res.status(500).json({ message: "Failed to fetch linked accounts" });
