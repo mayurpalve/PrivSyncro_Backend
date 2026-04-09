@@ -37,6 +37,13 @@ const providerConfigs = {
 
 const getProviderConfig = (provider) => providerConfigs[provider];
 
+const providerManageUrls = {
+  google: "https://myaccount.google.com/permissions",
+  spotify: "https://www.spotify.com/account/apps/"
+};
+
+const getProviderManageUrl = (provider) => providerManageUrls[provider] || "";
+
 const scopeLabelMap = {
   spotify: {
     "user-read-email": "Read Spotify account email",
@@ -377,7 +384,9 @@ exports.getLinkedAccounts = async (req, res) => {
 
       return {
         ...accountObject,
-        grantedPermissions: toReadablePermissions(accountObject.provider, accountObject.scope)
+        grantedPermissions: toReadablePermissions(accountObject.provider, accountObject.scope),
+        managedByPrivSyncro: true,
+        providerManageUrl: getProviderManageUrl(accountObject.provider)
       };
     });
 
@@ -451,6 +460,8 @@ exports.verifyIntegrationLive = async (req, res) => {
       verifiedAt: new Date().toISOString(),
       tokenLastUpdatedAt: effectiveAccount.updatedAt,
       grantedPermissions: toReadablePermissions(provider, effectiveAccount.scope || []),
+      managedByPrivSyncro: true,
+      providerManageUrl: getProviderManageUrl(provider),
       liveProfile
     });
   } catch (error) {
