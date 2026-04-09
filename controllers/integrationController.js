@@ -296,3 +296,69 @@ exports.disconnectIntegration = async (req, res) => {
     return res.status(500).json({ message: "Failed to disconnect integration" });
   }
 };
+
+exports.verifyIntegrationLive = async (req, res) => {
+  try {
+    const { provider } = req.params;
+    const config = getProviderConfig(provider);
+
+    if (!config) {
+      return res.status(400).json({ message: "Unsupported provider" });
+    }
+
+    const account = await IntegrationAccount.findOne({
+      userId: req.user.id,
+      provider
+    }).select("provider accessToken email displayName providerUserId scope updatedAt");
+
+    if (!account) {
+      return res.status(404).json({ message: `${provider} account is not connected` });
+    }
+
+    const profileResponse = await axios.get(config.userInfoUrl, {
+      headers: {
+        Authorization: `Bearer ${account.accessToken}`
+      }
+    });
+
+    const profile = profileResponse.data;
+    const liveProfile =
+      provider === "spotify"
+        ? {
+            providerUserId: profile.id || account.providerUserId || "",
+            email: profile.email || account.email || "",
+            displayName: profile.display_name || account.displayName || "",
+            country: profile.country || "",
+            product: profile.product || ""
+          }
+        : {
+            providerUserId: profile.id || account.providerUserId || "",
+            email: profile.email || account.email || "",
+            displayName: profile.name || account.displayName || "",
+            picture: profile.picture || ""
+          };
+
+    return res.status(200).json({
+      provider,
+      verified: true,
+      verifiedAt: new Date().toISOString(),
+      tokenLastUpdatedAt: account.updatedAt,
+      grantedPermissions: toReadablePermissions(provider, account.scope || []),
+      liveProfile
+    });
+  } catch (error) {
+    const detail =
+      error.response?.data?.error_description ||
+      error.response?.data?.error ||
+      error.response?.statusText ||
+      error.message;
+
+    console.error("Live verification error:", error.response?.data || error.message);
+    return res.status(500).json({
+      provider: req.params.provider,
+      verified: false,
+      message: "Live verification failed",
+      detail: String(detail)
+    });
+  }
+};
