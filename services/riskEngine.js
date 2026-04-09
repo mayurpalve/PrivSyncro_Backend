@@ -13,6 +13,8 @@ const sensitivityByDataType = {
   email: 0.7
 };
 
+const getSupportedDataTypes = () => Object.keys(sensitivityByDataType);
+
 const trustByAppId = {
   spotify: 0.8,
   google: 0.85,
@@ -137,5 +139,6 @@ const evaluatePrivacyRisk = async ({ userId, appId, dataType, consent }) => {
 };
 
 module.exports = {
-  evaluatePrivacyRisk
+  evaluatePrivacyRisk,
+  getSupportedDataTypes
 };

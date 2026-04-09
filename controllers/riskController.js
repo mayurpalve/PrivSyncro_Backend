@@ -1,5 +1,5 @@
 const Consent = require("../models/Consent");
-const { evaluatePrivacyRisk } = require("../services/riskEngine");
+const { evaluatePrivacyRisk, getSupportedDataTypes } = require("../services/riskEngine");
 
 const hasActiveConsent = (consent) => {
   if (!consent || consent.status !== "allowed") {
@@ -74,4 +74,10 @@ exports.getRiskByApp = async (req, res) => {
     console.error("Risk evaluation error:", error.message);
     return res.status(500).json({ message: "Failed to evaluate risk" });
   }
+};
+
+exports.getRiskMeta = async (_req, res) => {
+  return res.status(200).json({
+    supportedDataTypes: getSupportedDataTypes()
+  });
 };
