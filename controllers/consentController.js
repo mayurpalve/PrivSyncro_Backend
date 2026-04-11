@@ -34,6 +34,11 @@ exports.createConsent = async (req, res) => {
 
     return res.status(201).json(normalizeConsent(consent));
   } catch (error) {
+    if (error?.code === 11000) {
+      return res.status(409).json({
+        message: "A legacy unique index is blocking multiple policies. Restart backend to apply index migration."
+      });
+    }
     console.error("Create consent error:", error.message);
     return res.status(500).json({ message: "Failed to create consent" });
   }

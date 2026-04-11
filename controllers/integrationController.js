@@ -158,6 +158,50 @@ const extractErrorDetail = (error) => {
   return error?.message || "Unknown integration error";
 };
 
+const normalizeProviderProfile = (provider, rawProfile = {}, fallbackAccount = null) => {
+  const profile = rawProfile?.data && typeof rawProfile.data === "object" ? rawProfile.data : rawProfile;
+  const safeFallbackName = fallbackAccount?.displayName || "Connected User";
+  const safeFallbackEmail = fallbackAccount?.email || "";
+
+  if (provider === "spotify") {
+    return {
+      providerUserId: profile.id || fallbackAccount?.providerUserId || "",
+      email: profile.email || safeFallbackEmail,
+      displayName: profile.display_name || safeFallbackName
+    };
+  }
+
+  if (provider === "google") {
+    return {
+      providerUserId: profile.id || fallbackAccount?.providerUserId || "",
+      email: profile.email || safeFallbackEmail,
+      displayName: profile.name || safeFallbackName
+    };
+  }
+
+  if (provider === "facebook" || provider === "instagram") {
+    return {
+      providerUserId: profile.id || fallbackAccount?.providerUserId || "",
+      email: profile.email || safeFallbackEmail,
+      displayName: profile.name || profile.username || safeFallbackName
+    };
+  }
+
+  if (provider === "twitter" || provider === "x") {
+    return {
+      providerUserId: profile.id || fallbackAccount?.providerUserId || "",
+      email: profile.email || safeFallbackEmail,
+      displayName: profile.name || profile.username || safeFallbackName
+    };
+  }
+
+  return {
+    providerUserId: profile.id || fallbackAccount?.providerUserId || "",
+    email: profile.email || safeFallbackEmail,
+    displayName: profile.name || profile.username || safeFallbackName
+  };
+};
+
 const exchangeCodeForToken = async ({ provider, code, config, clientId, clientSecret, redirectUri }) => {
   if (provider === "spotify") {
     const tokenPayload = new URLSearchParams({
@@ -372,18 +416,7 @@ exports.handleOAuthCallback = async (req, res) => {
     });
 
     const profile = userInfoResponse.data;
-    const providerProfile =
-      provider === "spotify"
-        ? {
-            providerUserId: profile.id,
-            email: profile.email || "",
-            displayName: profile.display_name || "Spotify User"
-          }
-        : {
-            providerUserId: profile.id,
-            email: profile.email || "",
-            displayName: profile.name || "Google User"
-          };
+    const providerProfile = normalizeProviderProfile(provider, profile);
 
     const existingAccount = await IntegrationAccount.findOne({
       userId: decodedState.userId,
@@ -496,19 +529,16 @@ exports.verifyIntegrationLive = async (req, res) => {
       config
     });
 
+    const normalized = normalizeProviderProfile(provider, profile, effectiveAccount);
     const liveProfile =
       provider === "spotify"
         ? {
-            providerUserId: profile.id || effectiveAccount.providerUserId || "",
-            email: profile.email || effectiveAccount.email || "",
-            displayName: profile.display_name || effectiveAccount.displayName || "",
+            ...normalized,
             country: profile.country || "",
             product: profile.product || ""
           }
         : {
-            providerUserId: profile.id || effectiveAccount.providerUserId || "",
-            email: profile.email || effectiveAccount.email || "",
-            displayName: profile.name || effectiveAccount.displayName || "",
+            ...normalized,
             picture: profile.picture || ""
           };
 
