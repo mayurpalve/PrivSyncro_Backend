@@ -12,6 +12,21 @@ const DEFAULT_APPS = [
     permissions: ["health_data", "activity", "location"]
   },
   {
+    name: "Instagram",
+    provider: "Instagram",
+    permissions: ["profile", "email", "media", "social_graph"]
+  },
+  {
+    name: "Facebook",
+    provider: "Facebook",
+    permissions: ["profile", "email", "contacts", "social_graph"]
+  },
+  {
+    name: "Twitter/X",
+    provider: "Twitter",
+    permissions: ["profile", "email", "messages", "social_graph"]
+  },
+  {
     name: "WeatherNow",
     provider: "WeatherNow",
     permissions: ["location"]

@@ -23,26 +23,14 @@ exports.createConsent = async (req, res) => {
       return res.status(400).json({ message: "status must be 'allowed' or 'denied'" });
     }
 
-    const consent = await Consent.findOneAndUpdate(
-      {
-        userId: req.user.id,
-        appId,
-        dataType: dataType.toLowerCase()
-      },
-      {
-        userId: req.user.id,
-        appId,
-        dataType: dataType.toLowerCase(),
-        status,
-        expiry,
-        conditions
-      },
-      {
-        new: true,
-        upsert: true,
-        setDefaultsOnInsert: true
-      }
-    );
+    const consent = await Consent.create({
+      userId: req.user.id,
+      appId,
+      dataType: dataType.toLowerCase(),
+      status,
+      expiry,
+      conditions
+    });
 
     return res.status(201).json(normalizeConsent(consent));
   } catch (error) {

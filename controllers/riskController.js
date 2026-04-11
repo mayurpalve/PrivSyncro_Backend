@@ -23,7 +23,7 @@ exports.getRiskByApp = async (req, res) => {
         userId: req.user.id,
         appId,
         dataType: dataType.toLowerCase()
-      });
+      }).sort({ updatedAt: -1 });
 
       if (!consent) {
         return res.status(404).json({ message: "Consent not found for requested dataType" });
@@ -44,7 +44,14 @@ exports.getRiskByApp = async (req, res) => {
       });
     }
 
-    const consents = await Consent.find({ userId: req.user.id, appId });
+    const allConsents = await Consent.find({ userId: req.user.id, appId }).sort({ updatedAt: -1 });
+    const latestByDataType = new Map();
+    for (const consent of allConsents) {
+      if (!latestByDataType.has(consent.dataType)) {
+        latestByDataType.set(consent.dataType, consent);
+      }
+    }
+    const consents = Array.from(latestByDataType.values());
     if (consents.length === 0) {
       return res.status(404).json({ message: "No consents found for this app" });
     }

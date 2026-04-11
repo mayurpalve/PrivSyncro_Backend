@@ -38,6 +38,7 @@ app.use("/activity", require("./routes/activityRoutes"));
 app.use("/risk", require("./routes/riskRoutes"));
 app.use("/decision", require("./routes/decisionRoutes"));
 app.use("/governance", require("./routes/governanceRoutes"));
+app.use("/analytics", require("./routes/analyticsRoutes"));
 
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/apps", require("./routes/appRoutes"));
@@ -47,6 +48,7 @@ app.use("/api/activity", require("./routes/activityRoutes"));
 app.use("/api/risk", require("./routes/riskRoutes"));
 app.use("/api/decision", require("./routes/decisionRoutes"));
 app.use("/api/governance", require("./routes/governanceRoutes"));
+app.use("/api/analytics", require("./routes/analyticsRoutes"));
 app.use("/api/integrations", require("./routes/integrationRoutes"));
 
 app.use((err, req, res, next) => {

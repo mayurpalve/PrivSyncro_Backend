@@ -1,19 +1,38 @@
 const Activity = require("../models/Activity");
+const { analyzeTransferRisk } = require("../services/transferGuardEngine");
 
 exports.createActivity = async (req, res) => {
   try {
-    const { appId, dataType, timestamp, duration = 0 } = req.body;
+    const {
+      appId,
+      dataType,
+      timestamp,
+      duration = 0,
+      payloadSizeKb = 0,
+      location = null
+    } = req.body;
 
     if (!appId || !dataType) {
       return res.status(400).json({ message: "appId and dataType are required" });
     }
+
+    const transferAnalysis = analyzeTransferRisk({
+      appId,
+      dataType,
+      payloadSizeKb,
+      location
+    });
 
     const activity = await Activity.create({
       userId: req.user.id,
       appId,
       dataType: dataType.toLowerCase(),
       timestamp: timestamp ? new Date(timestamp) : new Date(),
-      duration
+      duration,
+      payloadSizeKb,
+      location,
+      transferFlags: transferAnalysis.transferFlags,
+      transferAnomalyScore: transferAnalysis.transferAnomalyScore
     });
 
     return res.status(201).json(activity);

@@ -40,6 +40,6 @@ const consentSchema = new mongoose.Schema(
   }
 );
 
-consentSchema.index({ userId: 1, appId: 1, dataType: 1 }, { unique: true });
+consentSchema.index({ userId: 1, appId: 1, dataType: 1, updatedAt: -1 });
 
 module.exports = mongoose.model("Consent", consentSchema);

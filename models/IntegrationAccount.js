@@ -11,7 +11,7 @@ const integrationAccountSchema = new mongoose.Schema(
     provider: {
       type: String,
       required: true,
-      enum: ["spotify", "google"],
+      enum: ["spotify", "google", "instagram", "facebook", "twitter", "x"],
       index: true
     },
     providerUserId: {

@@ -2,6 +2,7 @@ const Activity = require("../models/Activity");
 const Consent = require("../models/Consent");
 const { evaluatePrivacyRisk } = require("../services/riskEngine");
 const { getDecisionFromRisk } = require("../services/decisionEngine");
+const { analyzeTransferRisk } = require("../services/transferGuardEngine");
 
 const hasActiveConsent = (consent) => {
   if (!consent || consent.status !== "allowed") {
@@ -17,7 +18,14 @@ const hasActiveConsent = (consent) => {
 
 exports.makeDecision = async (req, res) => {
   try {
-    const { appId, dataType, duration = 0, timestamp } = req.body;
+    const {
+      appId,
+      dataType,
+      duration = 0,
+      timestamp,
+      payloadSizeKb = 0,
+      location = null
+    } = req.body;
 
     if (!appId || !dataType) {
       return res.status(400).json({ message: "appId and dataType are required" });
@@ -28,7 +36,7 @@ exports.makeDecision = async (req, res) => {
       userId: req.user.id,
       appId,
       dataType: normalizedDataType
-    });
+    }).sort({ updatedAt: -1 });
 
     if (!hasActiveConsent(consent)) {
       const blockedDecision = {
@@ -61,13 +69,23 @@ exports.makeDecision = async (req, res) => {
     });
 
     const decisionPayload = getDecisionFromRisk(riskScore);
+    const transferAnalysis = analyzeTransferRisk({
+      appId,
+      dataType: normalizedDataType,
+      payloadSizeKb,
+      location
+    });
 
     await Activity.create({
       userId: req.user.id,
       appId,
       dataType: normalizedDataType,
       timestamp: timestamp ? new Date(timestamp) : new Date(),
-      duration
+      duration,
+      payloadSizeKb,
+      location,
+      transferFlags: transferAnalysis.transferFlags,
+      transferAnomalyScore: transferAnalysis.transferAnomalyScore
     });
 
     return res.status(200).json({
@@ -75,6 +93,10 @@ exports.makeDecision = async (req, res) => {
       dataType: normalizedDataType,
       riskScore,
       components,
+      payloadSizeKb,
+      location,
+      transferFlags: transferAnalysis.transferFlags,
+      transferAnomalyScore: transferAnalysis.transferAnomalyScore,
       ...decisionPayload
     });
   } catch (error) {
@@ -85,7 +107,15 @@ exports.makeDecision = async (req, res) => {
 
 exports.getDecisionSummary = async (req, res) => {
   try {
-    const consents = await Consent.find({ userId: req.user.id }).sort({ updatedAt: -1 });
+    const allConsents = await Consent.find({ userId: req.user.id }).sort({ updatedAt: -1 });
+    const latestByPolicyKey = new Map();
+    for (const consent of allConsents) {
+      const key = `${consent.appId}::${consent.dataType}`;
+      if (!latestByPolicyKey.has(key)) {
+        latestByPolicyKey.set(key, consent);
+      }
+    }
+    const consents = Array.from(latestByPolicyKey.values());
 
     if (consents.length === 0) {
       return res.status(200).json({

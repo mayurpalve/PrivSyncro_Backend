@@ -31,6 +31,26 @@ const activitySchema = new mongoose.Schema(
       required: true,
       min: 0,
       default: 0
+    },
+    payloadSizeKb: {
+      type: Number,
+      min: 0,
+      default: 0
+    },
+    location: {
+      lat: { type: Number, default: null },
+      lng: { type: Number, default: null },
+      accuracyMeters: { type: Number, min: 0, default: null }
+    },
+    transferFlags: {
+      type: [String],
+      default: []
+    },
+    transferAnomalyScore: {
+      type: Number,
+      min: 0,
+      max: 1,
+      default: 0
     }
   },
   {

@@ -3,7 +3,15 @@ const { evaluateGovernanceItem, summarizeGovernance } = require("../services/gov
 
 exports.getGovernanceSummary = async (req, res) => {
   try {
-    const consents = await Consent.find({ userId: req.user.id }).sort({ updatedAt: -1 });
+    const allConsents = await Consent.find({ userId: req.user.id }).sort({ updatedAt: -1 });
+    const latestByPolicyKey = new Map();
+    for (const consent of allConsents) {
+      const key = `${consent.appId}::${consent.dataType}`;
+      if (!latestByPolicyKey.has(key)) {
+        latestByPolicyKey.set(key, consent);
+      }
+    }
+    const consents = Array.from(latestByPolicyKey.values());
 
     if (!consents.length) {
       return res.status(200).json({
@@ -27,4 +35,3 @@ exports.getGovernanceSummary = async (req, res) => {
     return res.status(500).json({ message: "Failed to build governance summary" });
   }
 };
-

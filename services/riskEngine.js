@@ -9,6 +9,8 @@ const sensitivityByDataType = {
   biometrics: 0.95,
   financial: 0.9,
   messages: 0.88,
+  media: 0.8,
+  social_graph: 0.82,
   profile: 0.45,
   email: 0.7
 };
@@ -19,7 +21,11 @@ const trustByAppId = {
   spotify: 0.8,
   google: 0.85,
   "google-fit": 0.85,
-  googlefit: 0.85
+  googlefit: 0.85,
+  instagram: 0.7,
+  facebook: 0.68,
+  twitter: 0.66,
+  x: 0.66
 };
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));

@@ -32,6 +32,42 @@ const providerConfigs = {
       "https://www.googleapis.com/auth/fitness.activity.read",
       "https://www.googleapis.com/auth/fitness.location.read"
     ]
+  },
+  instagram: {
+    authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
+    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email",
+    clientIdEnv: "INSTAGRAM_CLIENT_ID",
+    clientSecretEnv: "INSTAGRAM_CLIENT_SECRET",
+    redirectUriEnv: "INSTAGRAM_REDIRECT_URI",
+    scope: ["public_profile", "email"]
+  },
+  facebook: {
+    authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v19.0/oauth/access_token",
+    userInfoUrl: "https://graph.facebook.com/me?fields=id,name,email",
+    clientIdEnv: "FACEBOOK_CLIENT_ID",
+    clientSecretEnv: "FACEBOOK_CLIENT_SECRET",
+    redirectUriEnv: "FACEBOOK_REDIRECT_URI",
+    scope: ["public_profile", "email"]
+  },
+  twitter: {
+    authUrl: "https://twitter.com/i/oauth2/authorize",
+    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=id,name,username",
+    clientIdEnv: "TWITTER_CLIENT_ID",
+    clientSecretEnv: "TWITTER_CLIENT_SECRET",
+    redirectUriEnv: "TWITTER_REDIRECT_URI",
+    scope: ["tweet.read", "users.read", "offline.access"]
+  },
+  x: {
+    authUrl: "https://twitter.com/i/oauth2/authorize",
+    tokenUrl: "https://api.twitter.com/2/oauth2/token",
+    userInfoUrl: "https://api.twitter.com/2/users/me?user.fields=id,name,username",
+    clientIdEnv: "X_CLIENT_ID",
+    clientSecretEnv: "X_CLIENT_SECRET",
+    redirectUriEnv: "X_REDIRECT_URI",
+    scope: ["tweet.read", "users.read", "offline.access"]
   }
 };
 
@@ -39,7 +75,11 @@ const getProviderConfig = (provider) => providerConfigs[provider];
 
 const providerManageUrls = {
   google: "https://myaccount.google.com/permissions",
-  spotify: "https://www.spotify.com/account/apps/"
+  spotify: "https://www.spotify.com/account/apps/",
+  instagram: "https://www.instagram.com/accounts/manage_access/",
+  facebook: "https://www.facebook.com/settings?tab=applications",
+  twitter: "https://twitter.com/settings/connected_apps",
+  x: "https://x.com/settings/connected_apps"
 };
 
 const getProviderManageUrl = (provider) => providerManageUrls[provider] || "";
@@ -56,6 +96,24 @@ const scopeLabelMap = {
     profile: "Read Google profile details",
     "https://www.googleapis.com/auth/fitness.activity.read": "Read Google Fit activity data",
     "https://www.googleapis.com/auth/fitness.location.read": "Read Google Fit location data"
+  },
+  instagram: {
+    public_profile: "Read Instagram basic profile",
+    email: "Read account email"
+  },
+  facebook: {
+    public_profile: "Read Facebook basic profile",
+    email: "Read account email"
+  },
+  twitter: {
+    "tweet.read": "Read tweets",
+    "users.read": "Read profile data",
+    "offline.access": "Maintain long-lived access"
+  },
+  x: {
+    "tweet.read": "Read posts",
+    "users.read": "Read profile data",
+    "offline.access": "Maintain long-lived access"
   }
 };
 
