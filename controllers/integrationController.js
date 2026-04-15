@@ -7,6 +7,11 @@ const FRONTEND_BASE_URL = (process.env.FRONTEND_BASE_URL || "http://localhost:51
   /\/+$/,
   ""
 );
+const BACKEND_BASE_URL = (
+  process.env.BACKEND_BASE_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  "http://localhost:5000"
+).replace(/\/+$/, "");
 
 const providerConfigs = {
   spotify: {
@@ -72,6 +77,30 @@ const providerConfigs = {
 };
 
 const getProviderConfig = (provider) => providerConfigs[provider];
+
+const resolveProviderOAuth = (provider, config) => {
+  const defaultRedirectUri = `${BACKEND_BASE_URL}/api/integrations/callback/${provider}`;
+
+  if (provider === "instagram") {
+    const clientId = process.env[config.clientIdEnv] || process.env.FACEBOOK_CLIENT_ID || "";
+    const clientSecret = process.env[config.clientSecretEnv] || process.env.FACEBOOK_CLIENT_SECRET || "";
+    const redirectUri = process.env[config.redirectUriEnv] || defaultRedirectUri;
+    return { clientId, clientSecret, redirectUri };
+  }
+
+  if (provider === "facebook") {
+    const clientId = process.env[config.clientIdEnv] || process.env.INSTAGRAM_CLIENT_ID || "";
+    const clientSecret = process.env[config.clientSecretEnv] || process.env.INSTAGRAM_CLIENT_SECRET || "";
+    const redirectUri = process.env[config.redirectUriEnv] || defaultRedirectUri;
+    return { clientId, clientSecret, redirectUri };
+  }
+
+  return {
+    clientId: process.env[config.clientIdEnv] || "",
+    clientSecret: process.env[config.clientSecretEnv] || "",
+    redirectUri: process.env[config.redirectUriEnv] || defaultRedirectUri
+  };
+};
 
 const providerManageUrls = {
   google: "https://myaccount.google.com/permissions",
@@ -238,8 +267,7 @@ const refreshAccessToken = async ({ account, provider, config }) => {
     throw new Error("Refresh token not available");
   }
 
-  const clientId = process.env[config.clientIdEnv];
-  const clientSecret = process.env[config.clientSecretEnv];
+  const { clientId, clientSecret } = resolveProviderOAuth(provider, config);
 
   if (!clientId || !clientSecret) {
     throw new Error("OAuth client credentials are missing");
@@ -336,8 +364,7 @@ exports.getConnectUrl = async (req, res) => {
       return res.status(500).json({ message: "JWT_SECRET is missing in backend environment" });
     }
 
-    const clientId = process.env[config.clientIdEnv];
-    const redirectUri = process.env[config.redirectUriEnv];
+    const { clientId, redirectUri } = resolveProviderOAuth(provider, config);
 
     if (!clientId || !redirectUri) {
       return res.status(400).json({
@@ -391,9 +418,7 @@ exports.handleOAuthCallback = async (req, res) => {
       return res.redirect(toFrontendStatusRedirect(provider, "invalid_state"));
     }
 
-    const clientId = process.env[config.clientIdEnv];
-    const clientSecret = process.env[config.clientSecretEnv];
-    const redirectUri = process.env[config.redirectUriEnv];
+    const { clientId, clientSecret, redirectUri } = resolveProviderOAuth(provider, config);
 
     if (!clientId || !clientSecret || !redirectUri) {
       return res.redirect(toFrontendStatusRedirect(provider, "not_configured", "missing_oauth_env"));
@@ -447,19 +472,20 @@ exports.handleOAuthCallback = async (req, res) => {
 };
 
 exports.getIntegrationHealth = async (req, res) => {
-  const providers = Object.entries(providerConfigs).map(([provider, config]) => ({
-    provider,
-    configured: Boolean(
-      process.env[config.clientIdEnv] &&
-        process.env[config.clientSecretEnv] &&
-        process.env[config.redirectUriEnv]
-    ),
-    redirectUri: process.env[config.redirectUriEnv] || ""
-  }));
+  const providers = Object.entries(providerConfigs).map(([provider, config]) => {
+    const { clientId, clientSecret, redirectUri } = resolveProviderOAuth(provider, config);
+
+    return {
+      provider,
+      configured: Boolean(clientId && clientSecret && redirectUri),
+      redirectUri
+    };
+  });
 
   return res.status(200).json({
     jwtSecretConfigured: Boolean(process.env.JWT_SECRET),
     frontendBaseUrl: FRONTEND_BASE_URL,
+    backendBaseUrl: BACKEND_BASE_URL,
     providers
   });
 };
