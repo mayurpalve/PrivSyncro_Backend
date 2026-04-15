@@ -45,7 +45,7 @@ const providerConfigs = {
     clientIdEnv: "INSTAGRAM_CLIENT_ID",
     clientSecretEnv: "INSTAGRAM_CLIENT_SECRET",
     redirectUriEnv: "INSTAGRAM_REDIRECT_URI",
-    scope: ["public_profile", "email"]
+    scope: ["public_profile"]
   },
   facebook: {
     authUrl: "https://www.facebook.com/v19.0/dialog/oauth",
@@ -54,7 +54,7 @@ const providerConfigs = {
     clientIdEnv: "FACEBOOK_CLIENT_ID",
     clientSecretEnv: "FACEBOOK_CLIENT_SECRET",
     redirectUriEnv: "FACEBOOK_REDIRECT_URI",
-    scope: ["public_profile", "email"]
+    scope: ["public_profile"]
   },
   twitter: {
     authUrl: "https://twitter.com/i/oauth2/authorize",
@@ -127,12 +127,10 @@ const scopeLabelMap = {
     "https://www.googleapis.com/auth/fitness.location.read": "Read Google Fit location data"
   },
   instagram: {
-    public_profile: "Read Instagram basic profile",
-    email: "Read account email"
+    public_profile: "Read Instagram basic profile"
   },
   facebook: {
-    public_profile: "Read Facebook basic profile",
-    email: "Read account email"
+    public_profile: "Read Facebook basic profile"
   },
   twitter: {
     "tweet.read": "Read tweets",
