@@ -113,6 +113,19 @@ const providerManageUrls = {
 
 const getProviderManageUrl = (provider) => providerManageUrls[provider] || "";
 
+const toBase64Url = (buffer) =>
+  buffer
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+
+const generatePkcePair = () => {
+  const codeVerifier = toBase64Url(crypto.randomBytes(48));
+  const codeChallenge = toBase64Url(crypto.createHash("sha256").update(codeVerifier).digest());
+  return { codeVerifier, codeChallenge };
+};
+
 const scopeLabelMap = {
   spotify: {
     "user-read-email": "Read Spotify account email",
@@ -229,7 +242,15 @@ const normalizeProviderProfile = (provider, rawProfile = {}, fallbackAccount = n
   };
 };
 
-const exchangeCodeForToken = async ({ provider, code, config, clientId, clientSecret, redirectUri }) => {
+const exchangeCodeForToken = async ({
+  provider,
+  code,
+  config,
+  clientId,
+  clientSecret,
+  redirectUri,
+  codeVerifier
+}) => {
   if (provider === "spotify") {
     const tokenPayload = new URLSearchParams({
       grant_type: "authorization_code",
@@ -245,6 +266,27 @@ const exchangeCodeForToken = async ({ provider, code, config, clientId, clientSe
         Authorization: `Basic ${basicAuth}`
       }
     });
+  }
+
+  if (provider === "twitter" || provider === "x") {
+    const tokenPayload = new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      client_id: clientId
+    });
+
+    if (codeVerifier) {
+      tokenPayload.set("code_verifier", codeVerifier);
+    }
+
+    const headers = { "Content-Type": "application/x-www-form-urlencoded" };
+    if (clientSecret) {
+      const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+      headers.Authorization = `Basic ${basicAuth}`;
+    }
+
+    return axios.post(config.tokenUrl, tokenPayload.toString(), { headers });
   }
 
   const tokenPayload = new URLSearchParams({
@@ -341,12 +383,13 @@ const fetchUserInfoWithAutoRefresh = async ({ account, provider, config }) => {
   }
 };
 
-const createStateToken = (userId, provider) =>
+const createStateToken = (userId, provider, extra = {}) =>
   jwt.sign(
     {
       userId,
       provider,
-      nonce: crypto.randomBytes(16).toString("hex")
+      nonce: crypto.randomBytes(16).toString("hex"),
+      ...extra
     },
     process.env.JWT_SECRET,
     { expiresIn: "10m" }
@@ -370,7 +413,9 @@ exports.getConnectUrl = async (req, res) => {
       });
     }
 
-    const state = createStateToken(req.user.id, provider);
+    const isXProvider = provider === "twitter" || provider === "x";
+    const pkce = isXProvider ? generatePkcePair() : null;
+    const state = createStateToken(req.user.id, provider, pkce ? { codeVerifier: pkce.codeVerifier } : {});
     const query = new URLSearchParams({
       client_id: clientId,
       response_type: "code",
@@ -383,6 +428,11 @@ exports.getConnectUrl = async (req, res) => {
       query.append("access_type", "offline");
       query.append("include_granted_scopes", "true");
       query.append("prompt", "consent");
+    }
+
+    if (isXProvider && pkce) {
+      query.append("code_challenge", pkce.codeChallenge);
+      query.append("code_challenge_method", "S256");
     }
 
     return res.status(200).json({ authUrl: `${config.authUrl}?${query.toString()}` });
@@ -428,7 +478,8 @@ exports.handleOAuthCallback = async (req, res) => {
       config,
       clientId,
       clientSecret,
-      redirectUri
+      redirectUri,
+      codeVerifier: decodedState?.codeVerifier
     });
 
     const tokenData = tokenResponse.data;
